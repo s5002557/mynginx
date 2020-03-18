@@ -1,0 +1,244 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  creationTimestamp: null
+  name: mynginx2
+objects:
+- apiVersion: apps.openshift.io/v1
+  kind: DeploymentConfig
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftNewApp
+    creationTimestamp: null
+    generation: 6
+    labels:
+      app: myapp
+    name: ${NAME}
+  spec:
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      app: myapp
+      deploymentconfig: ${NAME}
+    strategy:
+      activeDeadlineSeconds: 21600
+      resources: {}
+      rollingParams:
+        intervalSeconds: 1
+        maxSurge: 25%
+        maxUnavailable: 25%
+        timeoutSeconds: 600
+        updatePeriodSeconds: 1
+      type: Rolling
+    template:
+      metadata:
+        annotations:
+          openshift.io/generated-by: OpenShiftNewApp
+        creationTimestamp: null
+        labels:
+          app: myapp
+          deploymentconfig: ${NAME}
+      spec:
+        containers:
+        - image: mynginx:latest
+          imagePullPolicy: Always
+          name: mynginx
+          ports:
+          - containerPort: 8080
+            protocol: TCP
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /etc/nginx/conf.d
+            name: nginx-conf
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - configMap:
+            defaultMode: 420
+            name: nginx-conf
+          name: nginx-conf
+    test: false
+    triggers:
+    - type: ConfigChange
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - mynginx
+        from:
+          kind: ImageStreamTag
+          name: mynginx:latest
+          namespace: devops3
+      type: ImageChange
+- apiVersion: build.openshift.io/v1
+  kind: BuildConfig
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftNewApp
+    creationTimestamp: null
+    labels:
+      app: myapp
+    name: ${NAME}
+  spec:
+    failedBuildsHistoryLimit: 5
+    nodeSelector: null
+    output:
+      to:
+        kind: ImageStreamTag
+        name: mynginx:latest
+    postCommit: {}
+    resources: {}
+    runPolicy: Serial
+    source:
+      git:
+        uri: git@git.icdc.io:ASakalouski/mynginx.git
+      sourceSecret:
+        name: gitlab-ssh
+      type: Git
+    strategy:
+      dockerStrategy:
+        from:
+          kind: ImageStreamTag
+          name: nginx:latest
+      type: Docker
+    successfulBuildsHistoryLimit: 5
+    triggers:
+    - github:
+        secret: P5rZfclTfSByiJx9ms-x
+      type: GitHub
+    - generic:
+        secret: qJgjHO-gMsrUgAStjR2d
+      type: Generic
+    - type: ConfigChange
+    - imageChange: {}
+      type: ImageChange
+  status:
+    lastVersion: 0
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftNewApp
+    creationTimestamp: null
+    labels:
+      app: myapp
+    name: ${NAME}
+  spec:
+    ports:
+    - name: 8080-tcp
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      app: myapp
+      deploymentconfig: ${NAME}
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    creationTimestamp: null
+    labels:
+      app: myapp
+    name: ${NAME}
+  spec:
+    host: ${NAME}.sparkling-bird-vs.icdc.io
+    port:
+      targetPort: 8080-tcp
+    to:
+      kind: Service
+      name: ${NAME}
+      weight: 100
+    wildcardPolicy: None
+  status:
+    ingress:
+    - conditions:
+      - lastTransitionTime: 2020-03-13T21:12:35Z
+        status: "True"
+        type: Admitted
+      host: ${NAME}.sparkling-bird-vs.icdc.io
+      routerName: router
+      wildcardPolicy: None
+- apiVersion: image.openshift.io/v1
+  kind: ImageStream
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftNewApp
+    creationTimestamp: null
+    generation: 1
+    labels:
+      app: myapp
+    name: mynginx
+  spec:
+    lookupPolicy:
+      local: false
+    tags:
+    - annotations: null
+      from:
+        kind: DockerImage
+        name: mynginx:latest
+      generation: null
+      importPolicy: {}
+      name: latest
+      referencePolicy:
+        type: ""
+  status:
+    dockerImageRepository: ""
+- apiVersion: image.openshift.io/v1
+  kind: ImageStream
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftNewApp
+      openshift.io/image.dockerRepositoryCheck: 2020-03-13T21:12:35Z
+    creationTimestamp: null
+    generation: 2
+    labels:
+      app: myapp
+    name: nginx
+  spec:
+    lookupPolicy:
+      local: false
+    tags:
+    - annotations:
+        openshift.io/imported-from: docker.io/nginx
+      from:
+        kind: DockerImage
+        name: nginx:latest
+      generation: 2
+      importPolicy: {}
+      name: latest
+      referencePolicy:
+        type: Source
+  status:
+    dockerImageRepository: ""
+- apiVersion: v1
+  data:
+    default.conf: "server {\r\n            listen      8080;\r\n            server_name
+      \ localhost;\r\n            charset koi8-r;\r\n            access_log  /var/log/nginx/host.access.log
+      \ main;\r\n            location / {\r\n                root   /usr/share/nginx/html;\r\n
+      \               index  index.html index.htm;\r\n            }\r\n            error_page
+      \ 404              /404.html;\r\n            error_page   500 502 503 504  /50x.html;\r\n
+      \           location = /50x.html {\r\n                root   /usr/share/nginx/html;\r\n
+      \           }\r\n            }"
+  kind: ConfigMap
+  metadata:
+    creationTimestamp: null
+    name: nginx-conf
+- apiVersion: v1
+  data:
+    ssh-privatekey: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlKSndJQkFBS0NBZ0VBb1VyMTNUQU9vQjdCb2hOcnNEcEFlRVRvSlpPRHp3QVIyNmVRYmJpV2tuRkI3QWNHCkx2T3VBWEZTZWRpL0w4VHpRKzlMVlg3Q1VqbTFaMzMvZUlBZ3BtZ3JXZ0xJZ1AzYitLbUo2MHBEVzA1VElxU0kKdVJHZG5vMWNIbzVRamY0c3RkOVFHTGJRVXlmajdZQVEzZWswdUhvUnF0UGduR1R6RUlQVVJWdkkyNGc3TThQVgppQUYvZ0xwTEdlaXNxMUFxeEVORDB2MnpCRXV6aWpYT0lOc2ZaRStVUUdpdVJYNjR3eEhlSll3UVFaVEF3bmJnCm4vdFJUWjZKV0d4ckNqbk8rak9XbXcxZkJXeWQxL3hFMzRRZHhiNHJPM1R1ZU5rdkh4VFU1dFVCak8yVFpGeXUKcVNjcXFaVG1ESkZBTU9QdHdTOTVJUDJpdFdPaFZkaXljeEJkOVpvMUpFU2xObVhpSDJ2TW9ZUkE1NkU3RlJZNgpPTDM2Q3BkenpjdWZ0Q3JwaHV2UDRnQ2Jlc2lhQm5VUTNCcVNkYnVQcUY4TGRFakk3QldGd3VsajBQQzJOaTFnCk1YWnQydFNKMkdZMTJGYlFYc3BQSFlCWGtFSzFSNTg5TGhMQkNrUnQ2M0VLWmZuNzYvR3UrdmttUXBLSGd2S1AKa1FTNTF2RGRwNnMybjVpUHdDSUpoWWlhOVNoMHZXZW13WWlFV25nWkZOem1sTld4Q0J1REt6S0tzM1E4bm01RwppVitZek0rT3BUWk5mbXBScXpwUGp6OUpSOFhEZjZLNkx5R2htTHhvenRqMWc1NVl6ZzJvdTczR041a0ZPNUlwCjF4SHRubldlelBYcmw4a3Z6QWpPVmd1T25hbjF5YjQrWGtTVkJ6dy9XN2hXdlJ1cGh3bThsRWlkVHJzQ0F3RUEKQVFLQ0FnQlY2L2pOdTZ3TzRGT0dZNUlhYnUycEpBd0crRzVlOTBxTUdOZDNtNzJhaFhyNG9VVkovY1hVUHVvUQp2c1lhVEhESzM4N2gzSVRvQ0pYNmE4U01ETFZYOEdZbnJSUGlvMWxyUGVXYTBoVFByd25haW92TEN2ZE1YMEdUCmhYeWtKNkxwdit5TFBkZjhkR09YUVlHNnRXREFaVWJFR2RxdGRabUdVclBodnVOaEQxRjZZZmgrVzAzdzVVemMKb0haYlRIbDcwOWx0ckhpUThVTFRmWll4S29tdWhqWVRtYkE4bFNVWHhZenhzNHQxWkNqTGIwaDU4UWQrc2RXNApwUWpnaWFzWTNpSjh0c0xId1BUVStpNDJZOHI0YkRYYmxvN3pFYjlvYjFCN0p6Mk1OWU12RTdCM3E4V3VVUU83CjdpU2o1c2ZoQWNrbEtmaGphSStwaTZhRVpWT25pY1BWMXFNY1lmQlQ2dllhWEd1dGRNUGhJcDlWNVRTK0dDc28Kek94cWxZS1gzcDMxUDdCVGRXM3VST2ptYTU5NWhWcjJZV2l4cU0wVDY2UG5JRHFHVEhsYUZ4QmhNcFRaTFQwNQo0UURhc0d0OXJlNkhPUU5wRUhleHREQy9yRGltTVhVZDFIMk5ubDJWTDVtUzlQUW16TzA4UDZ2bkE3b0d4d1hICnVFbm5NVFZFeENxNGsxaFNIa2RqcGl3ditPVVVDSjNwRy84YzcvS2d5U1pMZVVDY3pzU2FPbG8zUW5kajVmTVYKMTJyMTFqMmwwRER4VnBMek1IdmlJWkp3Uk1heHF0SHpmNlRycngyUENzN0JwQzY3RjZmVGQzNGRjODRGQzY2WApPMU1ZVm1LQTJUTDVYNS9XQ25iMlFtUm10Q0xmQ1ZmR240d2pTZi82MEVJcitQNFdBUUtDQVFFQTBiRmdzWi9XCmtHWU8yZTNuYWo4SUw4RUpSVmJyM0RWdWV3c3JyeU5jM2FGb3lzWDNVZWJMb1ZMQy90OTdTaVczdWtBU1h5bXYKdDBrTXo0eXFWcVUzaGhiN21mVnJVVHdGZTlQM1NRMURBdHBCbmZJR0tYdUhKaG53VVhzcUtuY0dSZFRlTUs4TgpDMzA1c2JYcFRxL1JrV2xxVWYwbWx2a1VFQXpDUS8zdlJXek5OS3FLN3lWWTFNNWoyeDZvdnRBV21FcWxQMW9MClg5bHZ0R0NuMHFUMjBGR21Nd1JhM0QydnBBTndNR3NFbjBPaEw4TTRVZVdsUStCeVRsYjk5RDJPMWtFTWEzSWUKakNCVlFaQjA3cVVrQTNwOTh0NkZSUGUxMnNXVGF2d3hqSE5EMjYzMTBpWm9uRXhSN25PMFlBelRmWDhQcGI4OQp4OUdxUXllazgvQVA0d0tDQVFFQXhPbGVlMStTOHpFTlViem1GRlRka0JhaFBRNkh2cnBDMmJONmc1TXFBRGlJCmFsSy9EaXFTUCtmNFBJalJoMmdDOUxseGE5T01tQlF4ZEFZWlB6S3pwVWxNd2dqN240VFA3ekNNTDBQVmZwOHcKN28vYXZycnZZN01HUTJwWW94L2c5VDhSMzdkUVI1UWo5UU1qM0tBQlRlOVZpblNSQitpVEFLTE1FMUs5Q0JOTgpGSEdLTjdqcUVGcUxiZWxRSUpxWUF4dEZNR0Mxc3J4OCt1a2JxZlVQMDhhSWpBL1dpM1lOTzh6d2JkUFVsOEpHCjhxNldPaFpkUXVRV3UvTmVoMU91OWxIR0Raa2lTTk5hTzFWdG55UWgyYzJJbU5SdlBCbGtpM1BWK3NrK0N3ZHkKMnRySXZaQXNTNytGQUNzSmN1U0RNM0FxV05rdGdndHpFTUNiWE5ETlNRS0NBUUFRQ3ZnUTN0KzFrSGxXWndNcgpkOE1TbER3M1Y5MFhyZWJUOXhqU2Yyd2RjTG5wdVplZ1puM3h5N2tyY3NHbC9KaS80U01Hc05QR3ZBb0Uzd2d4Ck5OYTRwWTErUys1MytwV1kwYkM3b0E0ZWE4QlZheXpaZzUvbFpGcWtnVDNLbmV5Vzd5QklyVHZjUXlwazFEd1QKVHhSRGdjTW1ucTJUSTE5TGt3NVIwVjI2L0FYL0g0VWRvc2ZYRUN0SG1tTGlwbHowTGRIU3RQcmx6R2JsYi9lbgpBQVA2RUNVZEJocEZlMXF5dTZpYnE3UmcwdlhFQjdXSlhuNTBZUG1kMEw0Qkw2eDc2K0lkWGsvRC9MMUpGTm85Clg5a1BneEdid1RhRS9rYWxoRFF4SFRaVlBvUlVqRXlnVlZ2dmlVOURaUXJKeG5GdnlvYlI4WDJ5aWZIeXpWZXIKYWhSdEFvSUJBSGFvL3hPdnEzazdsUUF0cWlTVVk1UUIzeFpSSEVJMk1qVEljRXE3c3pMQTNvdmI0MkFoRFZMUApjZ3JnbEF0YUJYWCtEamhoR2pkRzYrbzBCcURMNSsveHRQeTB0eFVRenRFZjIwcGNRVnAxaWVJbzlETzlxS2JXCjZpNVQ5cWdPZk55dExoTTNmM3d5N0Z3b2tVTFJkUmZHNHpCMVFEU1kxWVVybFhrTGdmaE0wVVZCaW40N3cya3AKZHg0NzI5cFo3c0xvZXhCRkp4bFhkcVVwTms5NzZ4YSthK2lqWHJGWjZXMmcrVDNseWhYTnNEMXNNZ0U5R3VSRgpXT0hZTFoyMU14a2lmQXdUdk5KUDh1OFFjdWZVdVVWc0V5V3QxbjVMK3dnQ1BPOU11RU9qTUhac0kwNEFoSUQ5Ckg2UFRTM1ZkK1NaVk1GK3NPRDFHc3dka1dmdGJwR2tDZ2dFQVl5eEZsQ2FCOS9MQmpkYllMUVRHdjZweU1UZFcKYnZYRTk4ZFM0RTM4V0dGUS9tYkRyRzJBY3ZWdnRkdGR6dVY0WFN6K3dTdzBPN2NCZkZzalJIRnpVMEFzNFJ0UQpsaEtrODV6bGNyVWRzd0NWa1RFRlo1WVdTSk9vOG5GMGNEUEZWSzR2TmpkUkNWMlZZS0ZhWFZ1WkUxNXBBbk5zCmM3YksrVWtieERZOCtUZkNIWU5HQjdjOUQ1NUpXL0hhUE9mbFUwaFdtRjRVRjN1aXhnbm9tUThaVkt3a3orMlcKN2dnblJLd2dXUTY3S043OUZNb3lZWFNWWkNwbGRrYjExbWV3V1VCZVhlbFEvdjJqc2k0amZnNU9wTG1CcVZlVQpnNUxabGVVZm1wUklreWxvL1Z2UTJETERmRW1TMmZQR094RzY5Y1kzbnJmeUtJd1VuYUYxcWdzcnBnPT0KLS0tLS1FTkQgUlNBIFBSSVZBVEUgS0VZLS0tLS0K
+  kind: Secret
+  metadata:
+    creationTimestamp: null
+    name: gitlab-ssh
+  type: Opaque
+parameters:
+  - name: NAME
+    description: "name Service"
+    value: mynginx2
